@@ -5,11 +5,11 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
+import '../app_server_config.dart';
+
 class SignalingService {
-  static const String _defaultWebrtcServerUrl = String.fromEnvironment(
-    'WEBRTC_SERVER_URL',
-    defaultValue: 'http://42.121.222.76',
-  );
+  static const String _defaultWebrtcServerUrl =
+      AppServerConfig.webrtcServerUrl;
 
   SignalingService({
     required String myUserId,

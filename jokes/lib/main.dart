@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
+import 'app_server_config.dart';
 import 'app.dart';
 import 'data/datasources/jokes_database.dart';
 import 'data/datasources/jokes_local_data_source.dart';
@@ -13,11 +14,6 @@ import 'data/repositories/jokes_repository_impl.dart';
 import 'presentation/blocs/auth_bloc.dart';
 import 'presentation/blocs/jokes_bloc.dart';
 import 'services/friend_directory_service.dart';
-
-const String apiBaseUrl = String.fromEnvironment(
-  'API_BASE_URL',
-  defaultValue: 'http://42.121.222.76/api',
-);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,7 +33,7 @@ Future<void> main() async {
 
   final dio = Dio(
     BaseOptions(
-      baseUrl: apiBaseUrl,
+      baseUrl: AppServerConfig.apiBaseUrl,
       connectTimeout: const Duration(seconds: 5),
       receiveTimeout: const Duration(seconds: 8),
     ),

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import '../../data/models/chat_models.dart';
 
-class IncomingCallPage extends StatelessWidget {
+class IncomingCallPage extends StatefulWidget {
   const IncomingCallPage({
     super.key,
     required this.friend,
@@ -13,8 +14,93 @@ class IncomingCallPage extends StatelessWidget {
   final String callType;
 
   @override
+  State<IncomingCallPage> createState() => _IncomingCallPageState();
+}
+
+class _IncomingCallPageState extends State<IncomingCallPage> {
+  final RTCVideoRenderer _localRenderer = RTCVideoRenderer();
+  MediaStream? _previewStream;
+  bool _rendererInitialized = false;
+  bool _rendererReady = false;
+  bool _previewReady = false;
+  bool _disposed = false;
+  bool _closing = false;
+
+  bool get _isVideo => widget.callType == 'video';
+
+  @override
+  void initState() {
+    super.initState();
+    if (_isVideo) {
+      _initPreview();
+    }
+  }
+
+  Future<void> _initPreview() async {
+    await _localRenderer.initialize();
+    if (_disposed || !mounted) {
+      await _localRenderer.dispose();
+      return;
+    }
+    _rendererInitialized = true;
+    _previewStream = await navigator.mediaDevices.getUserMedia({
+      'audio': false,
+      'video': {
+        'facingMode': 'user',
+        'width': {'ideal': 640},
+        'height': {'ideal': 480},
+        'frameRate': {'ideal': 24},
+      },
+    });
+    if (_disposed || !mounted) {
+      _previewStream?.getTracks().forEach((track) => track.stop());
+      await _previewStream?.dispose();
+      _previewStream = null;
+      return;
+    }
+    _localRenderer.srcObject = _previewStream;
+    setState(() {
+      _rendererReady = true;
+      _previewReady = _previewStream != null;
+    });
+  }
+
+  Future<void> _disposePreview() async {
+    if (_rendererInitialized) {
+      try {
+        _localRenderer.srcObject = null;
+      } catch (_) {
+        // Renderer may still be initializing or already disposed.
+      }
+    }
+    _previewStream?.getTracks().forEach((track) => track.stop());
+    await _previewStream?.dispose();
+    _previewStream = null;
+    _previewReady = false;
+  }
+
+  Future<void> _finish(bool accepted) async {
+    if (_closing) return;
+    _closing = true;
+    await _disposePreview();
+    if (!mounted) return;
+    Navigator.of(context).pop(accepted);
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _disposePreview();
+    if (_rendererInitialized) {
+      _localRenderer.dispose();
+      _rendererInitialized = false;
+    }
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final isVideo = callType == 'video';
+    final isVideo = _isVideo;
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -22,16 +108,31 @@ class IncomingCallPage extends StatelessWidget {
         child: Stack(
           children: [
             Positioned.fill(
+              child: isVideo && _rendererReady && _previewReady
+                  ? RTCVideoView(
+                      _localRenderer,
+                      mirror: true,
+                      objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                    )
+                  : DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.grey.shade900,
+                            Colors.black,
+                          ],
+                        ),
+                      ),
+                    ),
+            ),
+            Positioned.fill(
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.grey.shade900,
-                      Colors.black,
-                    ],
-                  ),
+                  color: isVideo
+                      ? Colors.black.withAlpha(110)
+                      : Colors.transparent,
                 ),
               ),
             ),
@@ -41,12 +142,14 @@ class IncomingCallPage extends StatelessWidget {
                   const SizedBox(height: 56),
                   CircleAvatar(
                     radius: 52,
-                    backgroundImage: friend.avatarUrl.isNotEmpty
-                        ? NetworkImage(friend.avatarUrl)
+                    backgroundImage: widget.friend.avatarUrl.isNotEmpty
+                        ? NetworkImage(widget.friend.avatarUrl)
                         : null,
-                    child: friend.avatarUrl.isEmpty
+                    child: widget.friend.avatarUrl.isEmpty
                         ? Text(
-                            friend.name.isNotEmpty ? friend.name[0] : '?',
+                            widget.friend.name.isNotEmpty
+                                ? widget.friend.name[0]
+                                : '?',
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 36,
@@ -56,7 +159,7 @@ class IncomingCallPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 20),
                   Text(
-                    friend.name,
+                    widget.friend.name,
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 28,
@@ -81,13 +184,13 @@ class IncomingCallPage extends StatelessWidget {
                           icon: Icons.call_end,
                           label: '拒绝',
                           color: const Color(0xFFE53935),
-                          onTap: () => Navigator.of(context).pop(false),
+                          onTap: () => _finish(false),
                         ),
                         _ActionButton(
                           icon: isVideo ? Icons.videocam : Icons.call,
                           label: '接听',
                           color: const Color(0xFF2E7D32),
-                          onTap: () => Navigator.of(context).pop(true),
+                          onTap: () => _finish(true),
                         ),
                       ],
                     ),

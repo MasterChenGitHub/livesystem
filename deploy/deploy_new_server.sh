@@ -25,7 +25,7 @@ set -euo pipefail
 # 配置 & 验证
 # --------------------------------------------------------------------------
 # 默认服务器 IP（后续变更只需改这里，或启动时传参覆盖）
-DEFAULT_SERVER_IP="42.121.222.76"
+DEFAULT_SERVER_IP="42.121.222.6"
 
 # 优先使用命令行参数；未传参则使用脚本默认 IP
 NEW_IP="${1:-${DEFAULT_SERVER_IP}}"
@@ -168,6 +168,13 @@ SSH_OPTS=("-i" "$SSH_KEY" "-o" "StrictHostKeyChecking=accept-new")
 # 创建远端目录
 ssh "${SSH_OPTS[@]}" "$SSH_TARGET" "mkdir -p '${REMOTE_BASE_DIR}'"
 
+# 探测目标机内网 IP（用于 coturn external-ip 公网/内网映射）
+SERVER_PRIVATE_IP="$(ssh "${SSH_OPTS[@]}" "$SSH_TARGET" "hostname -I | awk '{print \$1}'")"
+if [[ -z "${SERVER_PRIVATE_IP}" ]]; then
+  error "无法获取目标服务器内网 IP"
+fi
+info "目标服务器内网 IP：${SERVER_PRIVATE_IP}"
+
 # 同步项目文件
 rsync -az --delete \
   -e "ssh ${SSH_OPTS[*]}" \
@@ -188,6 +195,11 @@ info "正在启动 Docker 容器..."
 ssh "${SSH_OPTS[@]}" "$SSH_TARGET" "
   set -e
   cd '${REMOTE_BASE_DIR}/deploy'
+  cat > .env <<EOF
+SERVER_IP=${NEW_IP}
+SERVER_PRIVATE_IP=${SERVER_PRIVATE_IP}
+EOF
+  echo '已写入 deploy/.env (SERVER_IP=${NEW_IP}, SERVER_PRIVATE_IP=${SERVER_PRIVATE_IP})'
   docker compose down || true
   echo '构建镜像中（这可能需要 5-10 分钟）...'
   docker compose up -d --build
@@ -203,14 +215,14 @@ section "验证部署结果"
 sleep 5  # 等待服务完全启动
 
 info "检查 API 服务..."
-if curl -sS -m 5 "http://${NEW_IP}:8080/api/jokes" > /dev/null 2>&1; then
+if curl -sS -m 5 "http://${NEW_IP}/api/jokes" > /dev/null 2>&1; then
   info "✓ API 服务运行正常"
 else
   warn "⚠ API 服务暂未响应（可能仍在启动中）"
 fi
 
 info "检查 WebRTC 配置..."
-if curl -sS -m 5 "http://${NEW_IP}:8081/api/webrtc/config" > /dev/null 2>&1; then
+if curl -sS -m 5 "http://${NEW_IP}/api/webrtc/config" > /dev/null 2>&1; then
   info "✓ WebRTC 服务运行正常"
 else
   warn "⚠ WebRTC 服务暂未响应（可能仍在启动中）"
@@ -227,8 +239,8 @@ echo "服务器地址：$NEW_IP"
 echo "部署目录：$REMOTE_BASE_DIR"
 echo ""
 echo "可用的服务接口："
-echo "  REST API:      http://${NEW_IP}:8080/api/jokes"
-echo "  WebRTC Config: http://${NEW_IP}:8081/api/webrtc/config"
+echo "  REST API:      http://${NEW_IP}/api/jokes"
+echo "  WebRTC Config: http://${NEW_IP}/api/webrtc/config"
 echo "  SSH 连接:      ssh -i $SSH_KEY $SSH_TARGET"
 echo ""
 echo "常用命令："

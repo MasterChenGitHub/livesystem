@@ -85,14 +85,16 @@ services:
       - --fingerprint
       - --lt-cred-mech
       - --user=test:123456
-      - --realm=42.121.222.76
+      - --realm=${SERVER_IP:?SERVER_IP is required}
       - --listening-ip=0.0.0.0
       - --listening-port=3478
-      - --external-ip=42.121.222.76
+      - --external-ip=${SERVER_IP:?SERVER_IP is required}/${SERVER_PRIVATE_IP:?SERVER_PRIVATE_IP is required}
       - --min-port=49160
       - --max-port=49200
       - --no-tls
       - --no-dtls
+      - --no-cli
+      - --verbose
       - --simple-log
       - --log-file=stdout
     pull_policy: always
@@ -109,7 +111,7 @@ services:
       TZ: Asia/Shanghai
       WEBRTC_SERVER_PORT: 8081
       WEBRTC_STUN_URL: stun:stun.qq.com:3478,stun:stun.miwifi.com:3478
-      WEBRTC_TURN_URL: turn:42.121.222.76:3478?transport=udp,turn:42.121.222.76:3478?transport=tcp
+      WEBRTC_TURN_URL: turn:${SERVER_IP:?SERVER_IP is required}:3478?transport=udp,turn:${SERVER_IP:?SERVER_IP is required}:3478?transport=tcp
       WEBRTC_TURN_USERNAME: test
       WEBRTC_TURN_CREDENTIAL: 123456
     ports:

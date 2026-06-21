@@ -106,7 +106,9 @@ class WebRTCCallCubit extends Cubit<WebRTCCallStatus> {
   final List<RTCIceCandidate> _pendingRemoteCandidates = [];
   Timer? _iceDisconnectTimer;
   Completer<void>? _iceGatheringCompleter;
-  final bool _useTrickleIce = true;
+  // Some callees join signaling room a few seconds after caller starts.
+  // Disable trickle so SDP carries gathered candidates and avoids candidate-loss.
+  final bool _useTrickleIce = false;
   final bool _forceRelayCandidatesOnly = false;
   int _localCandidateCount = 0;
   int _remoteCandidateReceivedCount = 0;
@@ -347,6 +349,9 @@ class WebRTCCallCubit extends Cubit<WebRTCCallStatus> {
       )) {
         track.enabled = true;
       }
+      if (!isClosed) {
+        emit(state.copyWith());
+      }
     };
 
     _peerConnection!.onAddStream = (stream) {
@@ -355,6 +360,9 @@ class WebRTCCallCubit extends Cubit<WebRTCCallStatus> {
       for (final track in stream.getAudioTracks()) {
         _remoteAudioTrackCount += 1;
         track.enabled = true;
+      }
+      if (!isClosed) {
+        emit(state.copyWith());
       }
     };
 

@@ -6,7 +6,7 @@ abstract final class AppServerConfig {
 
   static const String serverHost = String.fromEnvironment(
     'SERVER_HOST',
-    defaultValue: '42.121.222.76',
+    defaultValue: '42.121.222.6',
   );
 
   static const String apiBaseUrl = String.fromEnvironment(
